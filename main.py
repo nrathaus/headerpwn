@@ -57,7 +57,7 @@ def request_worker(results, q, base_url):
     """request_worker"""
     while True:
         header = q.get()
-        print(f"Working on '{header}'")
+        print(f"Working on '{header}' ({q.qsize()})")
 
         (response, exception) = make_request(base_url, header)
         if response is None and exception is None:
