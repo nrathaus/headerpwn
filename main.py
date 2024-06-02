@@ -108,6 +108,8 @@ def print_results(results):
 
     if abnormal_count == 0:
         print("  No abnormal responses found")
+    else:
+        print(f"  {abnormal_count} abnormal responses")
 
 
 def request_worker(results, q, base_url, user_agents):
@@ -153,7 +155,7 @@ def main():
     """main()"""
     random.seed()
 
-    base_url = "http://zero.webappsecurity.com/"
+    base_url = "http://demo.testfire.net/"
     thread_count = 30
 
     headers = read_from_file("headers.txt")
