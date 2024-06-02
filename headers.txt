@@ -87,7 +87,6 @@ Auth-Type: foobar
 Auth_Type: foobar
 Auth-User: foobar
 Auth_User: foobar
-aws:x-amz-cek-alg: foobar
 Bad-Gateway: foobar
 Bad_Gateway: foobar
 Bad-Request: foobar
@@ -1485,6 +1484,7 @@ x-amz-id-2: foobar
 x-amz-iv: foobar
 x-amz-key: foobar
 x-amz-key-v2: foobar
+x-amz-matdesc: {"aws:x-amz-cek-alg":"AES/GCM/NoPadding"}
 x-amz-matdesc: foobar
 x-amz-metadata-directive: foobar
 x-amz-meta-: foobar
