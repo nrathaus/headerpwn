@@ -46,23 +46,35 @@ def make_request(base_url: str, incoming_header: str) -> tuple[object, object]:
 
 def print_results(results):
     """Print the obtained results"""
-    average_content_length = 0
-    content_length_item_count = 0
+    average_content_lengths = {}
     for result in results:
         if result["content_length"] is None:
+            if "-1" not in average_content_lengths:
+                average_content_lengths["-1"] = 0
+            average_content_lengths["-1"] += 1
+
             continue
-        content_length_item_count += 1
-        average_content_length += result["content_length"]
 
-    if content_length_item_count > 0:
-        average_content_length /= content_length_item_count
+        if f'{result["content_length"]}' not in average_content_lengths:
+            average_content_lengths[f'{result["content_length"]}'] = 0
+        average_content_lengths[f'{result["content_length"]}'] += 1
 
-    print(f"Average Content Length: {average_content_length:.2f}")
 
+    most_common_content_length = None
+    for (content_name, content_count) in average_content_lengths.items():
+        if most_common_content_length is None:
+            most_common_content_length = {"name": content_name, "count": content_count}
+            continue
+
+        if most_common_content_length['count'] < content_count:
+            most_common_content_length = {"name": content_name, "count": content_count}
+
+    print(f"Most common Content-Length: {most_common_content_length['name']}, hit count: {most_common_content_length['count']}")
+    print("Printing exceptions to the norm:")
     for result in results:
         if (result['exception'] is None and
             result['status_code'] == 200 and
-            result['content_length'] == average_content_length
+            result['content_length'] == int(most_common_content_length["name"])
             ):
             continue
 
@@ -115,7 +127,7 @@ def main():
     base_url = "http://zero.webappsecurity.com/"
     thread_count = 30
 
-    headers = read_headers_from_file()
+    headers = read_headers_from_file()[0:1000]
     headers.sort()
     q = queue.Queue()
     for header in headers:
