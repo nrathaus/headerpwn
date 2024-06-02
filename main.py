@@ -127,7 +127,7 @@ def main():
     base_url = "http://zero.webappsecurity.com/"
     thread_count = 30
 
-    headers = read_headers_from_file()[0:1000]
+    headers = read_headers_from_file()
     headers.sort()
     q = queue.Queue()
     for header in headers:
