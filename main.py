@@ -46,7 +46,26 @@ def make_request(base_url: str, incoming_header: str) -> tuple[object, object]:
 
 def print_results(results):
     """Print the obtained results"""
+    average_content_length = 0
+    content_length_item_count = 0
     for result in results:
+        if result["content_length"] is None:
+            continue
+        content_length_item_count += 1
+        average_content_length += result["content_length"]
+
+    if content_length_item_count > 0:
+        average_content_length /= content_length_item_count
+
+    print(f"Average Content Length: {average_content_length:.2f}")
+
+    for result in results:
+        if (result['exception'] is None and
+            result['status_code'] == 200 and
+            result['content_length'] == average_content_length
+            ):
+            continue
+
         print(
             f"[{result['status_code']}] [CL:{result['content_length']}] "
             f"[E:{result['exception']}] [{result['header']}]"
@@ -83,7 +102,7 @@ def request_worker(results, q, base_url):
             result["status_code"] = response.status_code
             result["content_length"] = len(response.text)
 
-        print(f"{result=}")
+        # print(f"{result=}")
         results.append(result)
 
         q.task_done()
@@ -93,10 +112,11 @@ def main():
     """main()"""
     random.seed()
 
-    base_url = "https://brokencrystals.com/"
+    base_url = "http://zero.webappsecurity.com/"
     thread_count = 30
 
-    headers = read_headers_from_file()
+    headers = read_headers_from_file()[89:90]
+    headers.sort()
     q = queue.Queue()
     for header in headers:
         q.put(header)
