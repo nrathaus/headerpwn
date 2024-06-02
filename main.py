@@ -80,7 +80,7 @@ def request_worker(results, q, base_url):
         except:
             break
 
-        print(f"Working on '{header}' ({q.qsize()})")
+        print(f"Working on '{header}' ({q.qsize()})                                    \r", end="")
 
         (response, exception) = make_request(base_url, header)
         if response is None and exception is None:
@@ -115,7 +115,7 @@ def main():
     base_url = "http://zero.webappsecurity.com/"
     thread_count = 30
 
-    headers = read_headers_from_file()[89:90]
+    headers = read_headers_from_file()
     headers.sort()
     q = queue.Queue()
     for header in headers:
@@ -130,6 +130,7 @@ def main():
 
     q.join()
 
+    print("\n======\nResults:")
     print_results(results)
 
     return
