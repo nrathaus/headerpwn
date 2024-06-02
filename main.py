@@ -56,7 +56,11 @@ def print_results(results):
 def request_worker(results, q, base_url):
     """request_worker"""
     while True:
-        header = q.get()
+        try:
+            header = q.get(timeout=1)
+        except:
+            break
+
         print(f"Working on '{header}' ({q.qsize()})")
 
         (response, exception) = make_request(base_url, header)
@@ -100,9 +104,13 @@ def main():
     results = []
 
     for _ in range(thread_count):
-        threading.Thread(target=request_worker, args=[results, q, base_url], daemon=True).start()
+        threading.Thread(
+            target=request_worker, args=[results, q, base_url], daemon=True
+        ).start()
 
     q.join()
+
+    print_results(results)
 
     return
 
