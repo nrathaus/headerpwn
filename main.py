@@ -78,7 +78,7 @@ def make_request(
             if retry > max_retry:
                 return (None, exception)
 
-            time.sleep(retry_delay / 1000) # Convert to ms
+            time.sleep(retry_delay / 1000)  # Convert to ms
 
     return (response, None)
 
