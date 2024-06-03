@@ -61,15 +61,17 @@ def make_request(
 
     headers = {parts[0]: parts[1]}
 
-    # Pick a random user agent - instead of the python-request
-    user_agent = random.choice(user_agents)
-    headers["User-Agent"] = user_agent
-
     retry = 0
     response = None
     request = None
     while True:
         try:
+            # Pick a random user agent - instead of the python-request
+            #  we put it here, so that retry will attempt a different user
+            #  agent - we aren't trying to test for (diff) user agents here..
+            user_agent = random.choice(user_agents)
+            headers["User-Agent"] = user_agent
+
             request = requests.Request(method="get", url=url, headers=headers)
             prepped = request.prepare()
             session = requests.Session()
