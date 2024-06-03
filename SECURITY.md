@@ -2,5 +2,4 @@
 
 ## Reporting a Vulnerability
 
-Open a issue with the [SECURITY] prefix set in the subject line
-
+Open a issue with the `SECURITY` prefix set in the subject line
