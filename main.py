@@ -146,14 +146,14 @@ def request_worker(**kwargs) -> None:  # results, q, base_url, user_agents
         q = kwargs["q"]
         if kwargs["json_status"]:
             json_obj = {
-                "status": f"Working on '{header}'",
+                "status": f"Testing '{header}'",
                 "left": q.qsize(),
                 "progress": f"{(1 - q.qsize() / kwargs['total']) * 100.0:0.2f}",
             }
             print(json.dumps(json_obj))
         else:
             print(
-                f"Working on '{header}' ({q.qsize()} of {kwargs['total']})"
+                f"Testing '{header}' ({q.qsize()} of {kwargs['total']})"
                 "                                                \r",
                 end="",
             )
@@ -265,7 +265,7 @@ def main():
 
     q.join()
 
-    if not args.json_ouput:
+    if not args.json_output:
         print("\n======\nResults:")
     print_results(args.json_output, args.output_results, results)
 
