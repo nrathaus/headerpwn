@@ -1,9 +1,14 @@
 #!/usr/bin/python3
+import sys
 import threading
 import queue
 import random
+import json
+import argparse
+
 import requests
 
+VERSION = "1.6.3"
 
 def read_from_file(filename: str) -> list:
     """Read file and return it as a list"""
@@ -62,7 +67,7 @@ def make_request(
     return (response, exception)
 
 
-def print_results(results):
+def print_results(json_output: bool, output_results: bool, results: list) -> None:
     """Print the obtained results"""
     average_content_lengths = {}
     for result in results:
@@ -86,11 +91,21 @@ def print_results(results):
         if most_common_content_length["count"] < content_count:
             most_common_content_length = {"name": content_name, "count": content_count}
 
-    print(
-        f"Most common Content-Length: {most_common_content_length['name']}, "
-        f"hit count: {most_common_content_length['count']}"
-    )
-    print("Printing exceptions to the norm:")
+    json_obj = {
+        "average_content_lengths": average_content_lengths,
+        "most_common_content_length": most_common_content_length,
+        "abnormalities": [],
+    }
+    if output_results:
+        json_obj["results"] = results
+
+    if not json_output:
+        print(
+            f"Most common Content-Length: {most_common_content_length['name']}, "
+            f"hit count: {most_common_content_length['count']}"
+        )
+        print("Printing exceptions to the norm:")
+
     abnormal_count = 0
     for result in results:
         if (
@@ -100,32 +115,52 @@ def print_results(results):
         ):
             continue
 
+        json_obj["abnormalities"].append(result)
         abnormal_count += 1
-        print(
-            f"  [{result['status_code']}] [CL:{result['content_length']}] "
-            f"[E:{result['exception']}] [{result['header']}]"
-        )
 
-    if abnormal_count == 0:
-        print("  No abnormal responses found")
+        if not json_output:
+            print(
+                f"  [{result['status_code']}] [CL:{result['content_length']}] "
+                f"[E:{result['exception']}] [{result['header']}]"
+            )
+
+    json_obj["abnormal_count"] = abnormal_count
+
+    if not json_output:
+        if abnormal_count == 0:
+            print("  No abnormal responses found")
+        else:
+            print(f"  {abnormal_count} abnormal responses")
     else:
-        print(f"  {abnormal_count} abnormal responses")
+        print(json.dumps(json_obj, indent=1))
 
 
-def request_worker(results, q, base_url, user_agents):
+def request_worker(**kwargs) -> None:  # results, q, base_url, user_agents
     """request_worker"""
     while True:
         try:
-            header = q.get(timeout=1)
+            header = kwargs["q"].get(timeout=1)
         except:
             break
 
-        print(
-            f"Working on '{header}' (left: {q.qsize()})                                    \r",
-            end="",
-        )
+        q = kwargs["q"]
+        if kwargs["json_status"]:
+            json_obj = {
+                "status": f"Working on '{header}'",
+                "left": q.qsize(),
+                "progress": f"{(1 - q.qsize() / kwargs['total']) * 100.0:0.2f}",
+            }
+            print(json.dumps(json_obj))
+        else:
+            print(
+                f"Working on '{header}' ({q.qsize()} of {kwargs['total']})"
+                "                                                \r",
+                end="",
+            )
 
-        (response, exception) = make_request(base_url, header, user_agents)
+        (response, exception) = make_request(
+            kwargs["base_url"], header, kwargs["user_agents"]
+        )
         if response is None and exception is None:
             continue
 
@@ -144,24 +179,70 @@ def request_worker(results, q, base_url, user_agents):
             result["url"] = response.url
             result["status_code"] = response.status_code
             result["content_length"] = len(response.text)
+            result["user_agent"] = response.request.headers["User-Agent"]
 
-        # print(f"{result=}")
-        results.append(result)
+        kwargs["results"].append(result)
 
         q.task_done()
 
 
 def main():
     """main()"""
+
+    # Some part are randomly picked, so seed it
     random.seed()
 
-    base_url = "http://demo.testfire.net/"
-    thread_count = 30
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--base_url",
+        help="URL to analyze (include http/https prefix and port if relevant)",
+        type=str,
+    )
+    parser.add_argument(
+        "--thread_count",
+        help="Maximum amount of threads to run (positive int, min 1)",
+        type=int,
+        default=30,
+    )
+    parser.add_argument(
+        "--output_results",
+        help="Output all the HTTP responses (normal and abnormal)",
+        default=False,
+        action="store_true",
+    )
+    parser.add_argument(
+        "--json_output",
+        help="Output the results in JSON format",
+        default=True,
+        action="store_true",
+    )
+    parser.add_argument(
+        "--json_status",
+        help="Output the status in JSON format",
+        default=False,
+        action="store_true",
+    )
+    args = parser.parse_args()
+
+    base_url = None
+    if args.base_url:
+        base_url = args.base_url
+
+    if args.thread_count < 1:
+        args.thread_count = 1
+
+    if base_url is None:
+        parser.print_help()
+        sys.exit()
+
+    thread_count = args.thread_count
 
     headers = read_from_file("headers.txt")
     user_agents = read_from_file("useragents.txt")
-    # headers = headers[-2000:]
+
+    # Sort the headers to make it easier to replicate
     headers.sort()
+
     q = queue.Queue()
     for header in headers:
         q.put(header)
@@ -170,13 +251,23 @@ def main():
 
     for _ in range(thread_count):
         threading.Thread(
-            target=request_worker, args=[results, q, base_url, user_agents], daemon=True
+            target=request_worker,
+            kwargs={
+                "results": results,
+                "q": q,
+                "base_url": base_url,
+                "user_agents": user_agents,
+                "json_status": args.json_status,
+                "total": q.qsize(),
+            },
+            daemon=True,
         ).start()
 
     q.join()
 
-    print("\n======\nResults:")
-    print_results(results)
+    if not args.json_ouput:
+        print("\n======\nResults:")
+    print_results(args.json_output, args.output_results, results)
 
     return
 
