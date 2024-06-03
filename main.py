@@ -49,7 +49,7 @@ def make_request(
     user_agents: list,
     max_retry: int,
     retry_delay: int,
-) -> list[object, object, object]:
+) -> tuple[object, object, object]:
     """Send a request to a server with a given url and custom header
     Return the response (HTTPResponse obj) and exception if occurred
     """
