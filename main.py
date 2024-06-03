@@ -6,6 +6,7 @@ import random
 import json
 import argparse
 import time
+import shlex
 
 import requests
 
@@ -48,7 +49,7 @@ def make_request(
     user_agents: list,
     max_retry: int,
     retry_delay: int,
-) -> tuple[object, object]:
+) -> list[object, object, object]:
     """Send a request to a server with a given url and custom header
     Return the response (HTTPResponse obj) and exception if occurred
     """
@@ -66,9 +67,13 @@ def make_request(
 
     retry = 0
     response = None
+    request = None
     while True:
         try:
-            response = requests.get(url=url, headers=headers, timeout=1)
+            request = requests.Request(method="get", url=url, headers=headers)
+            prepped = request.prepare()
+            session = requests.Session()
+            response = session.send(prepped, timeout=1)
 
             # If no exception occurred, break
             break
@@ -76,11 +81,54 @@ def make_request(
             # Exception occurred, retry
             retry += 1
             if retry > max_retry:
-                return (None, exception)
+                return (prepped, None, exception)
 
             time.sleep(retry_delay / 1000)  # Convert to ms
 
-    return (response, None)
+    return (prepped, response, None)
+
+
+def to_curl(request, compressed=False, verify=True):
+    """
+    Taken from: https://github.com/ofw/curlify/blob/master/curlify.py
+        (seems like an unmaintained project)
+    Returns string with curl command by provided request object
+
+    Parameters
+    ----------
+    compressed : bool
+        If `True` then `--compressed` argument will be added to result
+    """
+    parts = [
+        ("curl", None),
+        ("-X", request.method),
+    ]
+
+    for k, v in sorted(request.headers.items()):
+        parts += [("-H", "{0}: {1}".format(k, v))]
+
+    if request.body:
+        body = request.body
+        if isinstance(body, bytes):
+            body = body.decode("utf-8")
+        parts += [("-d", body)]
+
+    if compressed:
+        parts += [("--compressed", None)]
+
+    if not verify:
+        parts += [("--insecure", None)]
+
+    parts += [(None, request.url)]
+
+    flat_parts = []
+    for k, v in parts:
+        if k:
+            flat_parts.append(shlex.quote(k))
+        if v:
+            flat_parts.append(shlex.quote(v))
+
+    return " ".join(flat_parts)
 
 
 def print_results(json_output: bool, output_results: bool, results: list) -> None:
@@ -174,7 +222,7 @@ def request_worker(**kwargs) -> None:  # results, q, base_url, user_agents
                 end="",
             )
 
-        (response, exception) = make_request(
+        (request, response, exception) = make_request(
             kwargs["base_url"],
             header,
             kwargs["user_agents"],
@@ -190,6 +238,7 @@ def request_worker(**kwargs) -> None:  # results, q, base_url, user_agents
             "exception": None,
             "status_code": None,
             "content_length": None,
+            "curl": to_curl(request),
         }
 
         if exception is not None:
