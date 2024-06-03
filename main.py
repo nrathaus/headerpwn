@@ -5,10 +5,12 @@ import queue
 import random
 import json
 import argparse
+import time
 
 import requests
 
 VERSION = "1.6.3"
+
 
 def read_from_file(filename: str) -> list:
     """Read file and return it as a list"""
@@ -41,7 +43,11 @@ def generate_cache_buster() -> str:
 
 
 def make_request(
-    base_url: str, incoming_header: str, user_agents: list
+    base_url: str,
+    incoming_header: str,
+    user_agents: list,
+    max_retry: int,
+    retry_delay: int,
 ) -> tuple[object, object]:
     """Send a request to a server with a given url and custom header
     Return the response (HTTPResponse obj) and exception if occurred
@@ -58,13 +64,23 @@ def make_request(
     user_agent = random.choice(user_agents)
     headers["User-Agent"] = user_agent
 
-    exception = None
-    try:
-        response = requests.get(url=url, headers=headers, timeout=1)
-    except Exception as exception:
-        return (None, exception)
+    retry = 0
+    response = None
+    while True:
+        try:
+            response = requests.get(url=url, headers=headers, timeout=1)
 
-    return (response, exception)
+            # If no exception occurred, break
+            break
+        except Exception as exception:
+            # Exception occurred, retry
+            retry += 1
+            if retry > max_retry:
+                return (None, exception)
+
+            time.sleep(retry_delay)
+
+    return (response, None)
 
 
 def print_results(json_output: bool, output_results: bool, results: list) -> None:
@@ -159,7 +175,11 @@ def request_worker(**kwargs) -> None:  # results, q, base_url, user_agents
             )
 
         (response, exception) = make_request(
-            kwargs["base_url"], header, kwargs["user_agents"]
+            kwargs["base_url"],
+            header,
+            kwargs["user_agents"],
+            kwargs["max_retry"],
+            kwargs["retry_delay"],
         )
         if response is None and exception is None:
             continue
@@ -205,6 +225,24 @@ def main():
         default=30,
     )
     parser.add_argument(
+        "--max_retry",
+        help=(
+            "Maximum amount of retries that 'requests' will attempt "
+            "(positive int, min 0 - disabled, max 60)"
+        ),
+        type=int,
+        default=5,
+    )
+    parser.add_argument(
+        "--retry_delay",
+        help=(
+            "Delay in ms between requests when a 'requests' fails "
+            "(positive int, min 1ms, max 1000ms)"
+        ),
+        type=int,
+        default=100,
+    )
+    parser.add_argument(
         "--output_results",
         help="Output all the HTTP responses (normal and abnormal)",
         default=False,
@@ -227,6 +265,12 @@ def main():
     base_url = None
     if args.base_url:
         base_url = args.base_url
+
+    if args.retry_delay < 1 or args.retry_delay > 1000:
+        args.retry_delay = 100
+
+    if args.max_retry < 0 or args.max_retry > 60:
+        args.max_retry = 5
 
     if args.thread_count < 1:
         args.thread_count = 1
@@ -259,6 +303,8 @@ def main():
                 "user_agents": user_agents,
                 "json_status": args.json_status,
                 "total": q.qsize(),
+                "max_retry": args.max_retry,
+                "retry_delay": args.retry_delay,
             },
             daemon=True,
         ).start()
