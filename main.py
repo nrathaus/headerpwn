@@ -140,23 +140,44 @@ def print_results(json_output: bool, output_results: bool, results: list) -> Non
     for result in results:
         if result["content_length"] is None:
             if "-1" not in average_content_lengths:
-                average_content_lengths["-1"] = 0
-            average_content_lengths["-1"] += 1
+                average_content_lengths["-1-None"] = 0
+
+            average_content_lengths["-1-None"] += 1
 
             continue
 
-        if f'{result["content_length"]}' not in average_content_lengths:
-            average_content_lengths[f'{result["content_length"]}'] = 0
-        average_content_lengths[f'{result["content_length"]}'] += 1
+        if (
+            f'{result["content_length"]}-{result["status_code"]}'
+            not in average_content_lengths
+        ):
+            average_content_lengths[
+                f'{result["content_length"]}-{result["status_code"]}'
+            ] = 0
+
+        average_content_lengths[
+            f'{result["content_length"]}-{result["status_code"]}'
+        ] += 1
 
     most_common_content_length = None
     for content_name, content_count in average_content_lengths.items():
-        if most_common_content_length is None:
-            most_common_content_length = {"name": content_name, "count": content_count}
-            continue
+        content_length = ""
+        status_code = ""
+        if content_name.startswith("-1"):
+            content_length = -1
+            status_code = int(content_name[len("-1") :])
+        else:
+            (content_length, status_code) = content_name.split("-")
+            status_code = int(status_code)
 
-        if most_common_content_length["count"] < content_count:
-            most_common_content_length = {"name": content_name, "count": content_count}
+        if most_common_content_length is None or (
+            most_common_content_length is not None
+            and most_common_content_length["count"] < content_count
+        ):
+            most_common_content_length = {
+                "name": content_length,
+                "count": content_count,
+                "status_code": status_code,
+            }
 
     json_obj = {
         "average_content_lengths": average_content_lengths,
@@ -175,11 +196,16 @@ def print_results(json_output: bool, output_results: bool, results: list) -> Non
 
     abnormal_count = 0
     for result in results:
-        if (
-            result["exception"] is None
-            and result["status_code"] == 200
-            and result["content_length"] == int(most_common_content_length["name"])
-        ):
+        abnormal = False
+        if result["exception"] is not None:
+            abnormal = True
+
+        if result["status_code"] != most_common_content_length["status_code"] or result[
+            "content_length"
+        ] != int(most_common_content_length["name"]):
+            abnormal = True
+
+        if not abnormal:
             continue
 
         json_obj["abnormalities"].append(result)
