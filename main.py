@@ -57,7 +57,7 @@ def make_request(
 
     parts = incoming_header.split(": ")
     if len(parts) != 2:
-        return (None, None)
+        return (None, None, None)
 
     headers = {parts[0]: parts[1]}
 
